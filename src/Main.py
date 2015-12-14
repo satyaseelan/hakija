@@ -199,8 +199,7 @@ class DownloadData(QtCore.QThread):
         self.br.set_handle_robots(False)
         self.br.addheaders = self.req_headers.items()
 
-        startdate = datetime.datetime.strptime(self.startdate,
-                                               "%d-%m-%Y").date()
+        startdate = datetime.datetime.strptime(self.startdate, "%d-%m-%Y").date()
         enddate = datetime.datetime.strptime(self.enddate, "%d-%m-%Y").date()
 
         self.d = startdate
@@ -215,36 +214,35 @@ class DownloadData(QtCore.QThread):
 
             try:
                 self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                          "Log Message: Checking for data existence...")
-                res = self.br.open("http://www.nseindia.com/ArchieveSearch?h_filetype=eqbhav&date=" +
-                                   date + "&section=EQ", timeout=10)
-
+                          "Log: Checking for data existence...")
+                res = self.br.open("http://www.nseindia.com/ArchieveSearch?h_filetype=eqbhav&date=" + date + "&section=EQ", timeout=10)
+                print "http://www.nseindia.com/ArchieveSearch?h_filetype=eqbhav&date=" + date + "&section=EQ"
             except urllib2.URLError as e:
                 if str(e) == "<urlopen error [Errno -2] Name or service not known>":
                     self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                              "Log Message: No internet connection found. \
+                              "Log: No internet connection found. \
                               Kindly check and retry.")
                     self.stopTask()
             else:
                 # Check if EOD data for the given date exists
                 for link in self.br.links():
                     rlink = "http://nseindia.com" + link.url
+                    print(rlink)
                     # Flag to mark the existence of data.
                     flag = 1
                     break
                 global curdir
-                self.nfile = os.path.join(curdir,
-                                          self.d.strftime("%d-%m-%Y") + ".txt")
+                self.nfile = os.path.join(curdir, self.d.strftime("%d-%m-%Y") + ".txt")
                 if self.checklist['BHAVCOPY']:
                     if flag:
                         self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                                  "Log Message: Downloading bhavcopy...")
+                                  "Log: Downloading bhavcopy...")
 
                         response = self.req_session.get(rlink)
 
                         if response.status_code != 200:
                             self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                                "Log Message: Error in downloading Bhavcopy. "
+                                "Log: Error in downloading Bhavcopy. "
                                 "Recieved error code: %s. Kindly retry later."
                                 % response.status_code)
                             self.stopTask()
@@ -253,35 +251,30 @@ class DownloadData(QtCore.QThread):
                             return
 
                         self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                                  "Log Message: Bhavcopy succesfully fetched!")
+                                  "Log: Bhavcopy succesfully fetched!")
 
                         with ZipFile(StringIO(response.content), "r") as zippedcontent:
                           data = zippedcontent.read(zippedcontent.namelist()[0])
 
                         x = data.split("\n")
 
-                        with open(self.nfile, "a") as f:
+                        with open(self.nfile, "w") as f:
                             for x1 in x[1:-1]:
                                 x1 = x1.split(",")
                                 # Extract and write only the EQ series
                                 # data in the file
-                                if x1[1] == "EQ":
+                                if x1[1] == "EQ" or x1[1] == "BE":
                                     try:
-                                        f.write(x1[0] + "," +
-                                                self.d.strftime("%Y%m%d") +
-                                                "," + x1[2] + "," + x1[3] +
-                                                "," + x1[4] + "," + x1[5] +
-                                                "," + x1[8] + "\r\n")
+                                        f.write(x1[0] + "," + self.d.strftime("%Y%m%d") + "," + x1[2] + "," + x1[3] + "," + x1[4] + "," + x1[5] + "," + x1[8] + "\n")
                                     except:
-                                        self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                                                  "Log Message: Error in \
-                                                  downloading Bhavcopy. \
-                                                  Kindly retry later.")
+                                        self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"), "Log: Error in \
+                                                                                                downloading Bhavcopy. \
+                                                                                                Kindly retry later.")
                             if self.downloadindexdata(f):
                                 return
                     else:
                         self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                                  "Log Message: No Data Found!.\n\n")
+                                  "Log: No Data Found!.\n\n")
                 elif flag:
                     with open(self.nfile, "a") as f:
                         if self.downloadindexdata(f):
@@ -290,7 +283,7 @@ class DownloadData(QtCore.QThread):
                             return
                 else:
                     self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                              "Log Message: No Data Found!.\n\n")
+                              "Log: No Data Found!.\n\n")
 
             self.d += delta
         self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
@@ -302,58 +295,78 @@ class DownloadData(QtCore.QThread):
 
     def downloadindexdata(self, f):
         indexList = ['NSENIFTY',
-                     'NIFTYJUNIOR',
                      'BANKNIFTY',
-                     'NSEMIDCAP',
-                     'NSEIT',
+                     'NIFTYJUNIOR',
                      'NSE100',
                      'NSE500',
                      'MIDCAP50',
+                     'NSEMIDCAP',
+                     'NSEIT',
                      'VIX',
                      #'NSEDEFTY',
                      ]
         # Create a dictionary mapping index to the index data URL
-        urls = {
-        'NSENIFTY': 'http://nseindia.com/content/indices/histdata/CNX%20NIFTYdate-date.csv',
-        'NIFTYJUNIOR': 'http://nseindia.com/content/indices/histdata/CNX%20NIFTY%20JUNIORdate-date.csv',
-        'NSE100': 'http://nseindia.com/content/indices/histdata/CNX%20100date-date.csv',
-        'NSE500': 'http://nseindia.com/content/indices/histdata/CNX%20500date-date.csv',
-        'MIDCAP50': 'http://nseindia.com/content/indices/histdata/NIFTY%20MIDCAP%2050date-date.csv',
-        'NSEMIDCAP': 'http://nseindia.com/content/indices/histdata/CNX%20MIDCAPdate-date.csv',
-        'BANKNIFTY': 'http://nseindia.com/content/indices/histdata/BANK%20NIFTYdate-date.csv',
-        'NSEIT': 'http://nseindia.com/content/indices/histdata/CNX%20ITdate-date.csv',
-        'VIX': 'http://www.nseindia.com/content/vix/histdata/hist_india_vix_date_date.csv'
+
+        indexMap = {
+        'NSENIFTY': 'Nifty 50',
+        'NIFTYJUNIOR': 'Nifty Next 50',
+        'NSE100': 'Nifty 100',
+        'NSE500': 'Nifty 500',
+        'MIDCAP50': 'Nifty Midcap 50',
+        'NSEMIDCAP': 'Nifty Midcap 100',
+        'BANKNIFTY': 'Nifty Bank',
+        'NSEIT': 'Nifty IT',
+        'VIX': 'India VIX'
         }
 
-        for index in indexList:
-            # Check whether we've been cancelled or not
-            if self.stopping:
-                return 1
-            if self.checklist[index]:
-                try:
-                    newurl = re.sub('date', self.date, urls[index])
-                    self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                              "Log Message: Downloading " + index +
-                              " index data...")
-                    res = self.req_session.get(newurl, timeout=10)
-                    if res.status_code != 200:
-                        raise Exception("Wrong status code from NSE. Recieved: %s"
-                                        % res.status_code)
-                    data = res.content.split("\n")[1]
-                    abc = re.sub("\"", '', data).split(",")
-                    a = []
-                    for i in abc[1:]:
-                        a.append(i.strip())
-                    f.write(index + "," + self.d.strftime("%Y%m%d") +
-                            "," + a[0] + "," + a[1] + "," + a[2] + "," +
-                            a[3] + "," + a[4] + "\r\n")
-                except Exception as e:
-                    self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                              "Log Message: Error occured in downloading " +
-                              index + " index data.\n%s\nKindly retry later." % e)
+        urls = {
+        'index': 'http://www.nseindia.com/content/indices/ind_close_all_date.csv',
+        }
+
+        newurl = re.sub('date', self.d.strftime("%d%m%Y"), urls['index'])
+        self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
+                          "Log: Downloading index data...")
+#        print newurl + "\n";
+        try:
+            res = self.req_session.get(newurl, timeout=10)
+        except:
+            print "EXCEPTION"
+            self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
+                              "Log: Error in downloading " +
+                              " index data <" + newurl + ">. Please Try later.")
+        else:
+            data = res.content.split("\n")
+#            abc = re.sub("\"", '', data).split(",")
+            for index in indexList:
+        # Check whether we've been cancelled or not
+                if self.stopping:
+                    return 1
+                if not self.checklist[index]:
+                    continue
+                for ix1 in data[1:-1]:
+                    ix1 = ix1.split(",")
+                    if indexMap[index] == ix1[0]:
+                        a = []
+                        for i in ix1[2:]:
+                            a.append(i.strip())
+                        try:
+                            if index == "VIX":
+                                f.write(index + "," + self.d.strftime("%Y%m%d") + "," + a[0] + "," + a[1] + "," + a[2] + "," + a[3] + "," + "0" + "\n")
+                            else:
+                                f.write(index + "," + self.d.strftime("%Y%m%d") + "," + a[0] + "," + a[1] + "," + a[2] + "," + a[3] + "," + a[6] + "\n")
+                        except IOError:
+                            self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
+                                      "Log: Error in downloading " +
+                                      index + " index data. Please Try later.")
+                        except:
+                            self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
+                                "Log: Error in downloading " +
+                                index + " index data. Please Try later.")
+                        else:
+                            break
         f.close()
         self.emit(QtCore.SIGNAL("updategui(PyQt_PyObject)"),
-                  "Log Message: File successfully written.\n\n")
+                  "Log: Index data successfully written.\n")
 
 
 thisdir = os.path.dirname(os.path.abspath(sys.argv[0]))
